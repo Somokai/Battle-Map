@@ -3,7 +3,7 @@ import numpy as np
 import argparse
  
  
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(1)
 
  
 def nothing(x):
