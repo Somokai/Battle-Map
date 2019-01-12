@@ -23,19 +23,28 @@ def mv_chk(xPos, yPos, current):
         xNew = xAv
         yNew = yAv
     return (xNew,yNew)
+
+def relative_lower(elem):
+    return elem[1]+elem[1]*elem[0]
     
 def find_and_outline(c, color):
         
         ((x, y), radius) = cv2.minEnclosingCircle(c)
  
 		# only proceed if the radius meets a minimum size
-        if radius > 5 and radius < 20:
+        if radius > 5 and radius < 50:
+            #print(c.shape)
 			# draw the circle and centroid on the frame,
 			# then update the list of tracked points
             cv2.circle(frame, (int(x), int(y)), int(radius),
                 color, 2)
+                M = cv2.moments(c)
+            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+            return [center,radius]
             #cv2.circle(frame, center1, 5, (50, 50, 255), -1)
             
+def grid_draw(c):
+    pass
 
 timeClk = 0
     
@@ -56,12 +65,12 @@ args = vars(ap.parse_args())
 #color1Upper = (174, 255, 255) #hot pink
 #color2Lower = (0, 122, 194) #blue
 #color2Upper = (47, 255, 255) #blue
-color2Lower = (162, 118, 83) #red poker chip
-color2Upper = (179, 255, 255) #red poker chip
-#color1Lower = (77, 70, 43) #blue poker chip
-#color1Upper = (121, 255, 255) #blue poker chip
-color1Lower = (0, 0, 0) #white battle mat
-color1Upper = (179, 25, 255) #white battle mat
+color2Lower = (60, 71, 75) #red poker chip
+color2Upper = (158, 255, 255) #red poker chip
+color1Lower = (1, 192, 50) #blue poker chip
+color1Upper = (23, 255, 255) #blue poker chip
+#color1Lower = (0, 0, 0) #white battle mat
+#color1Upper = (179, 255, 100) #white battle mat
 pts = deque(maxlen=args["buffer"])
  
 # if a video path was not supplied, grab the reference
@@ -73,6 +82,9 @@ if not args.get("video", False):
 else:
     camera = cv2.VideoCapture(args["video"])
     
+camera.set(3,1920)
+camera.set(4,1080)
+
 # keep looping
 while True:
 	# grab the current frame
@@ -90,31 +102,53 @@ while True:
 	# a series of dilations and erosions to remove any small
 	# blobs left in the mask
     mask1 = cv2.inRange(hsv, color1Lower, color1Upper)
-    mask1 = cv2.erode(mask1, None, iterations=2)
-    mask1 = cv2.dilate(mask1, None, iterations=2)
+    mask1 = cv2.erode(mask1, None, iterations=4)
+    mask1 = cv2.dilate(mask1, None, iterations=4)
     
     mask2 = cv2.inRange(hsv, color2Lower, color2Upper)
-    mask2 = cv2.erode(mask2, None, iterations=2)
-    mask2 = cv2.dilate(mask2, None, iterations=2)
+    mask2 = cv2.erode(mask2, None, iterations=4)
+    mask2 = cv2.dilate(mask2, None, iterations=4)
     	# find contours in the mask and initialize the current
 	# (x, y) center of the ball
-    cnts1 = cv2.findContours(cv2.bitwise_not(mask1.copy()), cv2.RETR_EXTERNAL,
+    cnts1 = cv2.findContours(mask1.copy(), cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_SIMPLE)[-2]
     cnts2 = cv2.findContours(mask2.copy(), cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_SIMPLE)[-2]
-    center1 = None
-    center2 = None
+
+    center = []
+    radius = []
  
-    if len(cnts2) > 0:
+    cv2.circle(frame, (40, 20), int(10), (0,0,255), 2)
+      
+    if len(cnts2) == 4:
         for i in range(0,len(cnts2)):
-            find_and_outline(cnts2[i],(0,0,255))
+            pars = find_and_outline(cnts2[i],(0,0,255))
+            center.append(pars[0])
+            radius.append(int(pars[1]))
+            print(i)
+        
+        radius = int(np.mean(radius))
+        center.sort(key = relative_lower)
     
+        cv2.line(frame, (center[1][0]-radius,center[1][1]+radius), (center[0][0]-radius,center[0][1]-radius), (0,255,0), 1)
+        cv2.line(frame, (center[3][0]+radius,center[3][1]+radius), (center[2][0]+radius,center[2][1]-radius), (0,255,0), 1)
+        cv2.line(frame, (center[2][0]+radius,center[2][1]-radius), (center[0][0]-radius,center[0][1]-radius), (0,255,0), 1)
+        cv2.line(frame, (center[1][0]-radius,center[1][1]+radius), (center[3][0]+radius,center[3][1]+radius), (0,255,0), 1)
+
+        rows,cols,nada = frame.shape
     
+        newShape = np.array([[0,0],[0,584],[800,0],[800,584]],np.float32)
+        M = cv2.getPerspectiveTransform(np.array(center,np.float32),newShape)
+        frame = cv2.warpPerspective(frame,M,(800,584))
+        #ang = np.arctan(np.abs(((center[1][0])-(center[0][0])))/np.abs(((center[1][1])-(center[0][1]))))*180/np.pi
+        '''M = cv2.getRotationMatrix2D((cols/2,rows/2),90,1)
+        frame = cv2.warpAffine(frame,M,(cols,rows))'''
+
 	# only proceed if at least one contour was found
     if len(cnts1) > 0:
         xArr = []
         yArr = []
-		# find the largest contour in the mask, then use
+		# find the largest contour in the mask, then use.
 		# it to compute the minimum enclosing circle and
 		# centroid
         for i in range(0,len(cnts1)):
@@ -158,7 +192,7 @@ while True:
 	# if the 'q' key is pressed, stop the loop
     if key == ord("q"):
         break
- 
+
 # cleanup the camera and close any open windows
 cv2.destroyAllWindows()
 camera.release()
