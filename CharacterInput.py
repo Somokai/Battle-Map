@@ -30,6 +30,7 @@ def find_and_outline(c, color,printed,playerCharacters):
             #center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
             encircled = encircled+1
             #cv2.circle(frame, center1, 5, (50, 50, 255), -1)
+            cv2.imshow("Frame", frame)
             if printed == 0:
                 name = str(input('Who is this? '))
                 return (encircled, ((x,y),radius), name)
@@ -126,7 +127,7 @@ while True:
     #print(len(cnts1))
 	# only proceed if at least one contour was found
     
-    if len(cnts1) > 0 and numconts <= len(cnts1):
+    if len(cnts1) > 0:
 		# find the largest contour in the mask, then use.
 		# it to compute the minimum enclosing circle and
 		# centroid
