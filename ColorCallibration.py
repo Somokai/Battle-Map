@@ -3,7 +3,7 @@ import numpy as np
 import argparse
  
  
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(1)
 
  
 def nothing(x):
@@ -47,6 +47,9 @@ def get_click_hsv(event, x, y, flags, param):
         
 lower =  np.array([0,0,0])
 upper =  np.array([179,255,255]) 
+
+'''cap.set(3,1920)
+cap.set(4,1080)'''
 
 while(1):
  

@@ -55,13 +55,5 @@ highlight_square(15,15,gridSize,startPoint,img,(0,0,255))
 
 
 cv2.imshow('dst',img)
+cv2.waitkey()
  
-#result is dilated for marking the corners, not important
-'''dst = cv2.dilate(dst,None)
-
-# Threshold for an optimal value, it may vary depending on the image.
-img[dst>0.01*dst.max()]=[0,0,255]
-
-cv2.imshow('dst',img)
-if cv2.waitKey(0) & 0xff == 27:
-    cv2.destroyAllWindows()'''

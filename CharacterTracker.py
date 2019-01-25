@@ -1,91 +1,149 @@
 # import the necessary packages
 from centroidtracker import CentroidTracker
-from imutils.video import VideoStream
 import numpy as np
-import argparse
-import imutils
-import time
 import cv2
- 
-# construct the argument parse and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-p", "--prototxt", required=True,
-	help="path to Caffe 'deploy' prototxt file")
-ap.add_argument("-m", "--model", required=True,
-	help="path to Caffe pre-trained model")
-ap.add_argument("-c", "--confidence", type=float, default=0.5,
-	help="minimum probability to filter weak detections")
-args = vars(ap.parse_args())
+
 
 # initialize our centroid tracker and frame dimensions
 ct = CentroidTracker()
 (H, W) = (None, None)
  
-# load our serialized model from disk
-print("[INFO] loading model...")
-net = cv2.dnn.readNetFromCaffe(args["prototxt"], args["model"])
- 
 # initialize the video stream and allow the camera sensor to warmup
-print("[INFO] starting video stream...")
-vs = VideoStream(src=0).start()
-time.sleep(2.0)
+cap = cv2.VideoCapture(1)
 
-# loop over the frames from the video stream
+# sets the size of the frame to use
+cap.set(3,1920)
+cap.set(4,1080)
+
+#color1Lower = (0,0,92) # battle map from separate webcam
+#color1Upper = (143,71,255) # battle map from separate webcam
+
+color1Lower = (0,0,128) # coffee table mask
+color1Upper = (45,255,255) # coffee table mask
+
+
+# initialize the character name dictionary
+characterNames = {}
+
+# initialize so that we know if a dot has been drawn on a character
+circleDrawn = False
+
+
+# this is turned on until all characters have been identified
+addingCharacters = True
+
+
+# loop over frames
 while True:
-	# read the next frame from the video stream and resize it
-	frame = vs.read()
-	frame = imutils.resize(frame, width=400)
+    # read the next frame from the video stream and resize it
+    _,frame = cap.read()
+    #frame = imutils.resize(frame, width=1080)
+     
+    # if the frame dimensions are None, grab them
+    if W is None or H is None:
+        (H, W) = frame.shape[:2]
  
-	# if the frame dimensions are None, grab them
-	if W is None or H is None:
-		(H, W) = frame.shape[:2]
+    # convert to hsv for masking purposed
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
  
-	# construct a blob from the frame, pass it through the network,
-	# obtain our output predictions, and initialize the list of
-	# bounding box rectangles
-	blob = cv2.dnn.blobFromImage(frame, 1.0, (W, H),
-		(104.0, 177.0, 123.0))
-	net.setInput(blob)
-	detections = net.forward()
-	rects = []
+    # construct a mask for the color of the battle grid, then perform
+    # a series of dilations and erosions to remove any small
+    # blobs left in the mask
+    mask1 = cv2.inRange(hsv, color1Lower, color1Upper)
+    # perform a bitwise_not to invert the mask
+    #mask1 = cv2.bitwise_not(mask1)
+    # perform an erode and dilate to get rid of all of the small noise features
+    mask1 = cv2.erode(mask1, None, iterations=10)
+    mask1 = cv2.dilate(mask1, None, iterations=10)
+    # finds all of the different contours present in the image
+    cnts = cv2.findContours(mask1.copy(), cv2.RETR_EXTERNAL,
+                            cv2.CHAIN_APPROX_SIMPLE)[-2]
     
-    # loop over the detections
-	for i in range(0, detections.shape[2]):
-		# filter out weak detections by ensuring the predicted
-		# probability is greater than a minimum threshold
-		if detections[0, 0, i, 2] > args["confidence"]:
-			# compute the (x, y)-coordinates of the bounding box for
-			# the object, then update the bounding box rectangles list
-			box = detections[0, 0, i, 3:7] * np.array([W, H, W, H])
-			rects.append(box.astype("int"))
- 
-			# draw a bounding box surrounding the object so we can
-			# visualize it
-			(startX, startY, endX, endY) = box.astype("int")
-			cv2.rectangle(frame, (startX, startY), (endX, endY),
-				(0, 255, 0), 2)
     
-    	# update our centroid tracker using the computed set of bounding
-	# box rectangles
-	objects = ct.update(rects)
+    # initialized the array we will use to contain all of our PC's, NPC's, 
+    # Monsters etc
+    rects = []
+    
+    # loop through the contours so we can pick out all of the characters
+    for i in range(0, len(cnts)):
+        
+        # make a rectangle around the contour and find the corners
+        rect = cv2.minAreaRect(cnts[i])
+        box = cv2.boxPoints(rect)
+        # find the diagonal points to use for calculating the centroid and
+        # crossLength
+        xstart = box[0][0]
+        ystart = box[0][1]
+        xend = box[3][0]
+        yend = box[3][1]
+        
+        # calculates the diagonal to make sure our contours are not too big 
+        # or small
+        crossLength = np.sqrt((xstart-xend)**2+(ystart-yend)**2)
+        
+        # if the contours are the right size then append them to our rects
+        # array.        
+        if crossLength > 10 and crossLength < 500:
+            rects.append((xstart, ystart, xend, yend))
+            ##cv2.rectangle(frame, (xstart,ystart),(xend,yend),
+            ##    (0,0,255), 1)
+        
+    
+    # update our centroid tracker using the computed set of bounding
+    # box rectangles
+    objects = ct.update(rects)
  
-	# loop over the tracked objects
-	for (objectID, centroid) in objects.items():
-		# draw both the ID of the object and the centroid of the
-		# object on the output frame
-		text = "ID {}".format(objectID)
-		cv2.putText(frame, text, (centroid[0] - 10, centroid[1] - 10),
-			cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-		cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
+    # loop over the tracked objects
+    if len(characterNames) == len(objects) and len(characterNames) > 0:
+            addingCharacters = False
+     
+    # here we check to see if characters are being added    
+    if addingCharacters:
+        for (objectID, centroid) in objects.items():
+            # draw both the ID of the object and the centroid of the
+            # object on the output frame             
+            if objectID in characterNames:
+                cv2.putText(frame, characterNames[objectID], (centroid[0] - 10, centroid[1] - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 2)
+                cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1) 
+            # because the dot won't get drawn on until the next frame we first 
+            # draw the dot, then break the for loop
+            elif not circleDrawn:
+                    cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
+                    circleDrawn = True
+                    break
+            # once the dot is drawn then we get command line input to add in 
+            # the character names.
+            else:    
+                cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
+                name = input("Who is this? ")
+                characterNames[objectID] = name
+                circleDrawn = False
+    # if all of the characters have been added we simply keep updating them and
+    # adding the dots to the frames
+    else:
+        for objectID in characterNames:
+            try:
+                centroid = objects[objectID]
+                cv2.putText(frame, characterNames[objectID], (centroid[0] - 10, centroid[1] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 2)
+                cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
+            except:
+                pass
+            
+                
+
+    # display the mask
+    cv2.imshow("Mask",mask1)
+        
+    # show the output frame
+    cv2.imshow("Frame", frame)
+    key = cv2.waitKey(1) & 0xFF
  
-	# show the output frame
-	cv2.imshow("Frame", frame)
-	key = cv2.waitKey(1) & 0xFF
- 
-	# if the `q` key was pressed, break from the loop
-	if key == ord("q"):
-		break
+    # if the `q` key was pressed, break from the loop
+    if key == ord("q"):
+        break
  
 # do a bit of cleanup
 cv2.destroyAllWindows()
-vs.stop()
+cap.release()

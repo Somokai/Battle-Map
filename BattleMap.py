@@ -38,7 +38,7 @@ def find_and_outline(c, color):
 			# then update the list of tracked points
             cv2.circle(frame, (int(x), int(y)), int(radius),
                 color, 2)
-                M = cv2.moments(c)
+            M = cv2.moments(c)
             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
             return [center,radius]
             #cv2.circle(frame, center1, 5, (50, 50, 255), -1)
