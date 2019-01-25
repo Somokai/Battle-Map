@@ -1,0 +1,15 @@
+# Character Sheet
+
+Player Name = Bob
+Character Name = Larry
+Class = Fighter
+Race = Dwarf
+Weapon1 = Axe
+Weapon2 = Handaxe
+Armor = Chainmail
+Strength = 17
+Dexterity = 14
+Constitution = 16
+Intelligence = 10
+Charisma = 11
+Hit Points = 34
