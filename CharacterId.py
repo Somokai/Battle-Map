@@ -14,11 +14,11 @@ print(D,E)
 
 
 # Read image
-im = cv2.imread("testImg.jpg", cv2.IMREAD_GRAYSCALE)
+im = cv2.imread("testSingle.jpg", cv2.IMREAD_GRAYSCALE)
 
 th, thresh1 = cv2.threshold(im, 220, 255, cv2.THRESH_BINARY_INV);
-small_to_large_image_size_ratio = 0.2
-small_img = cv2.resize(thresh1, # original image
+small_to_large_image_size_ratio = 0.1
+small_img = cv2.resize(im, # original image
                        (0,0), # set fx and fy, not the final size
                        fx=small_to_large_image_size_ratio, 
                        fy=small_to_large_image_size_ratio, 
@@ -48,6 +48,7 @@ for i in range(len(keypoints)):
     x = np.int(keypoints[i].pt[0]/small_to_large_image_size_ratio)
     y = np.int(keypoints[i].pt[1]/small_to_large_image_size_ratio)
     radius = np.int(keypoints[i].size/small_to_large_image_size_ratio/2)
+    cv2.circle(im_with_keypoints,(x,y),radius,(0,255,0))
 
 
 im_floodfill = thresh1.copy();
@@ -57,11 +58,24 @@ cv2.floodFill(im_floodfill, mask, (0,0), 255)
 im_floodfill_inv = cv2.bitwise_not(im_floodfill)
 im_out = thresh1 | im_floodfill_inv
 
+edges = np.array(cv2.Canny(im_out,im.shape[0],im.shape[1]))
+edgePoints = np.where(edges == 255)
+print(edgePoints)
+angles = np.zeros((len(edgePoints[0]),1))
+for pInd in range(len(edgePoints[0])):
+    dx = edgePoints[0][pInd]-x
+    dy = edgePoints[1][pInd]-y
+    angles[pInd] = np.arctan(dx/dy)
+
+print(angles)    
+
 # Show keypoints
+cv2.imshow("smallImg",small_img)
 cv2.imshow("Keypoints", im_with_keypoints)
 cv2.imshow("image",thresh1)
 cv2.imshow("Thresholded Image", thresh1)
 cv2.imshow("Floodfilled Image", im_floodfill)
 cv2.imshow("Inverted Floodfilled Image", im_floodfill_inv)
 cv2.imshow("Foreground", im_out)
+cv2.imshow("Edges",edges)
 cv2.waitKey(0)
